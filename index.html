@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Radar Público</title>
+<meta name="description" content="Licitações abertas do PNCP filtradas pelo que você vende, com nota de aderência de 0 a 100.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231F4FD8'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='white' stroke-width='2' opacity='.5'/%3E%3Ccircle cx='16' cy='16' r='4' fill='none' stroke='white' stroke-width='2'/%3E%3Cpath d='M16 16 L25 9' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: barra superior, filtros fixos à esquerda, lista de licitações em linhas densas à direita. */
+:root{
+  --bg:#F3F5F8; --panel:#FFFFFF; --ink:#142033; --muted:#5B6778; --line:#DDE2EA;
+  --accent:#1F4FD8; --accent-ink:#FFFFFF; --accent-soft:#E6ECFC;
+  --good:#14804A; --good-bg:#E3F4EA; --warn:#8F5600; --warn-bg:#FDF0D5;
+  --low:#566274; --low-bg:#E9EDF3; --danger:#B42318; --danger-bg:#FDE7E4; --mark:#FFE98A;
+  --f-display:'Bricolage Grotesque',system-ui,sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E141C; --panel:#151D28; --ink:#E6EBF2; --muted:#93A0B2; --line:#263243;
+    --accent:#6C93FF; --accent-ink:#0E141C; --accent-soft:#1B2740;
+    --good:#4CC38A; --good-bg:#12301F; --warn:#F0B34D; --warn-bg:#36280E;
+    --low:#93A0B2; --low-bg:#1E2733; --danger:#FF8A7A; --danger-bg:#3A1815; --mark:#5C4B0B;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E141C; --panel:#151D28; --ink:#E6EBF2; --muted:#93A0B2; --line:#263243;
+  --accent:#6C93FF; --accent-ink:#0E141C; --accent-soft:#1B2740;
+  --good:#4CC38A; --good-bg:#12301F; --warn:#F0B34D; --warn-bg:#36280E;
+  --low:#93A0B2; --low-bg:#1E2733; --danger:#FF8A7A; --danger-bg:#3A1815; --mark:#5C4B0B;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Topo */
+.top{background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:60px;flex-wrap:wrap;padding-block:8px}
+.brand{display:flex;align-items:center;gap:10px;font:700 20px/1 var(--f-display);letter-spacing:-.01em}
+.brand svg{width:30px;height:30px;flex:none}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{border:0;background:none;padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer;font-weight:500}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+.tab .n{font-family:var(--f-mono);font-size:12px;margin-left:4px}
+.spacer{flex:1}
+.status{font-size:13px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn[disabled]{opacity:.55;cursor:default}
+.bar{height:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+
+/* Grade principal */
+.main{display:grid;grid-template-columns:320px minmax(0,1fr);gap:24px;padding-block:20px 48px;align-items:start}
+@media (max-width:900px){.main{grid-template-columns:minmax(0,1fr)}}
+aside.filtros{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px;min-width:0}
+aside h2{font:700 13px/1 var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+label.f{display:grid;gap:6px;font-size:13px;color:var(--muted);font-weight:500}
+label.f>span.hint{font-weight:400;font-size:12px}
+input[type=text],input[type=number],select,textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;min-width:0}
+textarea{resize:vertical;min-height:70px;font-size:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ufs{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
+.uf{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:4px 0;font:500 12px var(--f-mono);cursor:pointer;color:var(--muted)}
+.uf[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink)}
+.perfil{display:flex;gap:6px}
+.perfil select{flex:1}
+input[type=range]{width:100%;accent-color:var(--accent)}
+details.como{font-size:13px;color:var(--muted)}
+details.como summary{cursor:pointer;color:var(--accent)}
+details.como p{margin:8px 0 0}
+.filtros-toggle{display:none}
+@media (max-width:900px){
+  .filtros-toggle{display:block}
+  aside.filtros.fechado .corpo-filtros{display:none}
+}
+
+/* Cartões de resumo */
+.resumo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+@media (max-width:640px){.resumo{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile small{display:block;font-size:12px;color:var(--muted)}
+.tile b{font:600 22px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.ordem{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.ordem .count{color:var(--muted);font-size:13px}
+.ordem select{width:auto}
+
+/* Linha de licitação */
+.lic{display:grid;grid-template-columns:64px minmax(0,1fr) 150px;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+@media (max-width:640px){.lic{grid-template-columns:52px minmax(0,1fr)}.lic .lado{grid-column:1/-1;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;text-align:left}}
+.nota{width:100%;aspect-ratio:1;max-width:64px;border-radius:12px;display:grid;place-content:center;text-align:center;background:var(--low-bg);color:var(--low)}
+.nota b{font:700 24px/1 var(--f-mono);font-variant-numeric:tabular-nums}
+.nota span{font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.nota.alta{background:var(--good-bg);color:var(--good)}
+.nota.media{background:var(--warn-bg);color:var(--warn)}
+.obj{margin:0 0 6px;font:500 15px/1.45 var(--f-body);overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.lic.aberta .obj{-webkit-line-clamp:unset;display:block}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
+.meta{margin:0 0 10px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+.meta b{color:var(--ink);font-weight:500}
+.pill{font-size:11px;font-weight:600;letter-spacing:.03em;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase}
+.acoes{display:flex;gap:6px;flex-wrap:wrap}
+.lado{text-align:right}
+.valor{font:600 17px var(--f-mono);font-variant-numeric:tabular-nums}
+.prazo{font-size:13px;font-weight:600;margin-top:2px}
+.prazo.urg{color:var(--danger)} .prazo.atencao{color:var(--warn)}
+.lado small{color:var(--muted);font:400 12px var(--f-mono)}
+.itens{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;overflow-x:auto}
+.itens table{border-collapse:collapse;width:100%;font-size:13px;min-width:420px}
+.itens th{text-align:left;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line);padding:4px 8px 4px 0}
+.itens td{padding:5px 8px 5px 0;border-bottom:1px dashed var(--line);vertical-align:top}
+.itens td.num{font-family:var(--f-mono);text-align:right;white-space:nowrap}
+.vazio{background:var(--panel);border:1px dashed var(--line);border-radius:12px;padding:32px 20px;text-align:center;color:var(--muted)}
+.vazio b{display:block;color:var(--ink);font:600 18px var(--f-display);margin-bottom:6px}
+.msg{padding:10px 12px;border-radius:8px;background:var(--warn-bg);color:var(--warn);font-size:13px;margin-bottom:12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><circle cx="16" cy="16" r="9" fill="none" stroke="var(--accent-ink)" stroke-width="2" opacity=".5"/><circle cx="16" cy="16" r="4" fill="none" stroke="var(--accent-ink)" stroke-width="2"/><path d="M16 16 L25 9" stroke="var(--accent-ink)" stroke-width="2.4" stroke-linecap="round"/></svg>
+      Radar Público
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Visões">
+      <button class="tab" role="tab" data-v="radar" aria-selected="true">Radar <span class="n" id="n-radar">0</span></button>
+      <button class="tab" role="tab" data-v="fav" aria-selected="false">Favoritas <span class="n" id="n-fav">0</span></button>
+      <button class="tab" role="tab" data-v="hide" aria-selected="false">Descartadas <span class="n" id="n-hide">0</span></button>
+    </nav>
+    <div class="spacer"></div>
+    <span class="status" id="status">Aguardando coleta</span>
+    <button class="btn primary" id="coletar">Coletar PNCP</button>
+  </div>
+  <div class="bar"><i id="prog"></i></div>
+</header>
+
+<div class="wrap">
+<div class="main">
+
+<aside class="filtros" id="filtros">
+  <button class="btn filtros-toggle" id="toggleFiltros" type="button">Filtros do radar</button>
+  <div class="corpo-filtros" style="display:grid;gap:14px">
+    <div>
+      <h2>Perfil de busca</h2>
+      <div class="perfil" style="margin-top:8px">
+        <select id="perfil" aria-label="Perfil de busca"></select>
+        <button class="btn small" id="novoPerfil" type="button">Novo</button>
+        <button class="btn small" id="delPerfil" type="button">Excluir</button>
+      </div>
+    </div>
+    <label class="f" for="nomePerfil">Nome do perfil
+      <input type="text" id="nomePerfil">
+    </label>
+    <label class="f" for="termos">Palavras que você vende
+      <textarea id="termos" spellcheck="false"></textarea>
+      <span class="hint">Separe por vírgula. "livro" também encontra livros e livraria.</span>
+    </label>
+    <label class="f" for="excluir">Ignorar quando aparecer
+      <textarea id="excluir" spellcheck="false" style="min-height:52px"></textarea>
+    </label>
+    <div>
+      <h2 style="margin-bottom:8px">Estados</h2>
+      <div class="ufs" id="ufs"></div>
+    </div>
+    <div class="row2">
+      <label class="f" for="modalidade">Modalidade
+        <select id="modalidade"><option value="">Todas</option></select>
+      </label>
+      <label class="f" for="esfera">Esfera
+        <select id="esfera"><option value="">Todas</option><option value="F">Federal</option><option value="E">Estadual</option><option value="M">Municipal</option><option value="D">Distrital</option></select>
+      </label>
+    </div>
+    <label class="f" for="municipio">Município ou órgão contém
+      <input type="text" id="municipio" placeholder="ex.: Londrina, Secretaria de Educação">
+    </label>
+    <div class="row2">
+      <label class="f" for="vmin">Valor mínimo (R$)<input type="number" id="vmin" min="0" step="1000"></label>
+      <label class="f" for="vmax">Valor máximo (R$)<input type="number" id="vmax" min="0" step="1000"></label>
+    </div>
+    <label class="f" for="nota">Nota mínima: <b id="notaVal" style="color:var(--ink)">30</b>
+      <input type="range" id="nota" min="0" max="100" step="5">
+    </label>
+    <label class="chk" for="srp"><input type="checkbox" id="srp"> Só registro de preços</label>
+    <label class="chk" for="semAd"><input type="checkbox" id="semAd"> Mostrar sem aderência (nota 0)</label>
+    <label class="f" for="maxPag">Páginas por estado na coleta
+      <input type="number" id="maxPag" min="1" max="400">
+      <span class="hint">Cada página traz 50 licitações. Estados grandes têm centenas de páginas.</span>
+    </label>
+    <details class="como">
+      <summary>Como a nota é calculada</summary>
+      <p>Cada palavra do perfil é procurada no objeto da licitação. A primeira palavra encontrada vale 45 pontos e cada palavra diferente soma 15. Repetições, frase completa e termo no começo do texto somam um pouco mais. Termo achado só na informação complementar vale no máximo 40. Se aparecer uma palavra de "ignorar", a nota é 0.</p>
+      <p>O PNCP não tem busca por palavra. O radar baixa as licitações abertas dos estados escolhidos e aplica a busca no seu navegador.</p>
+    </details>
+  </div>
+</aside>
+
+<section id="conteudo" style="min-width:0">
+  <div class="resumo" id="resumo"></div>
+  <div id="avisos"></div>
+  <div class="ordem">
+    <label for="ordem" class="count">Ordenar por</label>
+    <select id="ordem">
+      <option value="nota">Maior nota</option>
+      <option value="enc">Encerra primeiro</option>
+      <option value="valor">Maior valor</option>
+      <option value="pub">Publicadas recentemente</option>
+    </select>
+    <span class="count" id="contagem"></span>
+    <span class="spacer"></span>
+    <button class="btn small" id="csv" type="button">Exportar CSV</button>
+  </div>
+  <div id="lista"></div>
+  <div style="text-align:center;margin-top:8px"><button class="btn" id="mais" hidden>Mostrar mais</button></div>
+</section>
+
+</div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+const API = 'https://pncp.gov.br/api/consulta/v1/contratacoes/proposta';
+const API_ITENS = 'https://pncp.gov.br/api/pncp/v1/orgaos';
+const UFS = 'AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(' ');
+const ESFERA = {F:'Federal',E:'Estadual',M:'Municipal',D:'Distrital'};
+const PAGE = 50, CONC = 4, TTL_AUTO = 12*3600*1000;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const norm = s => String(s||'').normalize('NFC').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const brl = v => v==null?'Sigiloso':'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:v>=1000?0:2});
+const fmtD = iso => { if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
+
+/* ---------- armazenamento ---------- */
+const ls = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+let dbp;
+function db(){
+  if(dbp) return dbp;
+  dbp = new Promise((res,rej)=>{
+    try{
+      const r = indexedDB.open('radar-publico',1);
+      r.onupgradeneeded = ()=>r.result.createObjectStore('uf');
+      r.onsuccess = ()=>res(r.result);
+      r.onerror = ()=>rej(r.error);
+    }catch(e){ rej(e); }
+  });
+  return dbp;
+}
+async function idbGet(k){ try{ const d=await db(); return await new Promise(r=>{ const q=d.transaction('uf').objectStore('uf').get(k); q.onsuccess=()=>r(q.result); q.onerror=()=>r(null); }); }catch(e){ return null; } }
+async function idbSet(k,v){ try{ const d=await db(); await new Promise(r=>{ const t=d.transaction('uf','readwrite'); t.objectStore('uf').put(v,k); t.oncomplete=r; t.onerror=r; }); }catch(e){} }
+
+/* ---------- estado ---------- */
+const PERFIL_PADRAO = () => ({
+  id:'p'+Date.now().toString(36), nome:'Livros e leitura',
+  termos:'livro, livros, literatura, literário, leitura, acervo bibliográfico, biblioteca, paradidático, didático, kit de leitura',
+  excluir:'livro ata, livro caixa, livro de ponto, livro de registro',
+  ufs:['PR'], modalidade:'', esfera:'', municipio:'', vmin:'', vmax:'', nota:30, srp:false, semAd:false, maxPag:60
+});
+const S = {
+  perfis: ls.get('radar.perfis',null) || [PERFIL_PADRAO()],
+  perfilId: ls.get('radar.perfilId',null),
+  marks: ls.get('radar.marks',{}),
+  cache: {},            // uf -> {t, rows}
+  view: 'radar',
+  limite: 100,
+  abertas: new Set(), itensCache: {},
+  coletando: false, cancelar: false,
+  lista: []
+};
+if(!S.perfis.find(p=>p.id===S.perfilId)) S.perfilId = S.perfis[0].id;
+const perfil = () => S.perfis.find(p=>p.id===S.perfilId);
+const salvar = () => { ls.set('radar.perfis',S.perfis); ls.set('radar.perfilId',S.perfilId); };
+
+/* ---------- coleta no PNCP ---------- */
+async function getJSON(url){
+  for(let i=0;i<5;i++){
+    let r;
+    try{ r = await fetch(url); }catch(e){ await sleep(700*2**i); continue; }
+    if(r.status===204) return {data:[],totalPaginas:0,totalRegistros:0};
+    if(r.ok) return r.json();
+    if([429,500,502,503,504].includes(r.status)){ await sleep(900*2**i); continue; }
+    throw new Error('PNCP respondeu '+r.status);
+  }
+  throw new Error('PNCP não respondeu. Tente de novo em alguns minutos.');
+}
+function compacta(c){
+  const o=c.orgaoEntidade||{}, u=c.unidadeOrgao||{};
+  return {
+    id:c.numeroControlePNCP, cnpj:o.cnpj, ano:c.anoCompra, seq:c.sequencialCompra,
+    o:c.objetoCompra||'', i:(c.informacaoComplementar||'').slice(0,500),
+    org:o.razaoSocial||'', un:u.nomeUnidade||'', uf:u.ufSigla||'', mun:u.municipioNome||'',
+    mod:c.modalidadeNome||'', esf:o.esferaId||'', srp:!!c.srp, v:c.valorTotalEstimado,
+    ab:c.dataAberturaProposta, enc:c.dataEncerramentoProposta, pub:c.dataPublicacaoPncp,
+    modo:c.modoDisputaNome||'', orig:c.linkSistemaOrigem||''
+  };
+}
+function dataFinal(){
+  const d=new Date(); d.setDate(d.getDate()+365);
+  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+}
+async function coletarUF(uf, maxPag, onProgress){
+  const base = API+'?dataFinal='+dataFinal()+'&uf='+uf+'&tamanhoPagina='+PAGE+'&pagina=';
+  const p1 = await getJSON(base+1);
+  const total = p1.totalPaginas||0;
+  const alvo = Math.min(total, maxPag);
+  const rows = new Map();
+  (p1.data||[]).forEach(c=>rows.set(c.numeroControlePNCP,compacta(c)));
+  let feitas = 1; onProgress(feitas,alvo,rows.size);
+  let prox = 2;
+  async function worker(){
+    while(!S.cancelar){
+      const n = prox++; if(n>alvo) return;
+      try{ const j = await getJSON(base+n); (j.data||[]).forEach(c=>rows.set(c.numeroControlePNCP,compacta(c))); }
+      catch(e){ /* pula a página que falhou */ }
+      feitas++; onProgress(feitas,alvo,rows.size);
+    }
+  }
+  await Promise.all(Array.from({length:CONC},worker));
+  return {rows:[...rows.values()], total, alvo, completo: !S.cancelar && alvo>=total};
+}
+async function coletar(){
+  if(S.coletando) return;
+  const p = perfil();
+  if(!p.ufs.length){ aviso('Escolha pelo menos um estado.'); return; }
+  S.coletando = true; S.cancelar = false;
+  $('coletar').textContent = 'Parar coleta';
+  $('coletar').onclick = ()=>{ S.cancelar = true; };
+  try{
+    for(const uf of p.ufs){
+      if(S.cancelar) break;
+      const r = await coletarUF(uf, Math.max(1,+p.maxPag||60), (f,t,n)=>{
+        $('status').textContent = uf+': página '+f+' de '+t+' · '+n.toLocaleString('pt-BR')+' licitações';
+        $('prog').style.width = Math.round(f/Math.max(t,1)*100)+'%';
+      });
+      const reg = {t:Date.now(), rows:r.rows, total:r.total, alvo:r.alvo, completo:r.completo};
+      S.cache[uf] = reg; await idbSet(uf,reg);
+      render();
+    }
+  }catch(e){
+    aviso(e.message);
+  }finally{
+    S.coletando=false; S.cancelar=false;
+    $('prog').style.width='0';
+    $('coletar').textContent='Coletar PNCP';
+    $('coletar').onclick = coletar;
+    statusTxt(); render();
+  }
+}
+async function carregarCache(){
+  for(const uf of perfil().ufs){ if(!S.cache[uf]){ const r = await idbGet(uf); if(r) S.cache[uf]=r; } }
+}
+function statusTxt(){
+  const ts = perfil().ufs.map(u=>S.cache[u]&&S.cache[u].t).filter(Boolean);
+  if(!ts.length){ $('status').textContent='Nenhuma coleta feita ainda'; return; }
+  const min = Math.min(...ts), m = Math.round((Date.now()-min)/60000);
+  $('status').textContent = 'Coletado há '+(m<1?'instantes':m<60?m+' min':Math.round(m/60)+' h');
+}
+function aviso(t){ $('avisos').innerHTML = t?'<div class="msg">'+esc(t)+'</div>':''; }
+
+/* ---------- nota de aderência ---------- */
+function compilar(p){
+  const lista = s => String(s||'').split(/[,;\n]+/).map(x=>x.trim()).filter(Boolean);
+  const mk = raw => { const n=norm(raw).replace(/\s+/g,' '); return {raw, n, frase:/\s/.test(n), re:new RegExp('(?<![a-z0-9])'+reEsc(n).replace(/ /g,'\\s+'),'g')}; };
+  return {termos:lista(p.termos).map(mk), excl:lista(p.excluir).map(mk)};
+}
+function avaliar(r, comp){
+  if(r._n===undefined){ r._n=norm(r.o); r._ni=norm(r.i); }
+  for(const e of comp.excl){ e.re.lastIndex=0; if(e.re.test(r._n)||e.re.test(r._ni)) return {nota:0,excl:true,hits:[]}; }
+  let obj=[], inf=[], total=0, primeiro=1e9;
+  for(const t of comp.termos){
+    const a=r._n.match(t.re), b=r._ni.match(t.re);
+    if(a){ obj.push(t); total+=a.length; t.re.lastIndex=0; const m=r._n.search(t.re); if(m>=0&&m<primeiro) primeiro=m; }
+    else if(b){ inf.push(t); }
+  }
+  let s=0;
+  if(obj.length){
+    s = 45+Math.min(45,15*(obj.length-1));
+    s += Math.min(10,(total-obj.length)*3);
+    if(obj.some(t=>t.frase)) s+=5;
+    if(primeiro<60) s+=5;
+  }else if(inf.length){
+    s = 20+Math.min(20,8*(inf.length-1));
+  }
+  return {nota:Math.min(100,Math.round(s)), hits:obj, soInfo:!obj.length&&inf.length>0};
+}
+function destacar(r, hits){
+  const n=r._n, o=r.o;
+  if(!hits.length || n.length!==o.length) return esc(o);
+  const rg=[];
+  hits.forEach(t=>{ t.re.lastIndex=0; let m; while((m=t.re.exec(n))){ rg.push([m.index,m.index+m[0].length]); if(m[0].length===0) t.re.lastIndex++; } });
+  rg.sort((a,b)=>a[0]-b[0]);
+  let out='', pos=0;
+  for(const [a,b] of rg){ if(a<pos) continue; out+=esc(o.slice(pos,a))+'<mark>'+esc(o.slice(a,b))+'</mark>'; pos=b; }
+  return out+esc(o.slice(pos));
+}
+
+/* ---------- filtro e lista ---------- */
+function filtrar(){
+  const p=perfil(), comp=compilar(p);
+  const mun=norm(p.municipio), vmin=p.vmin===''?null:+p.vmin, vmax=p.vmax===''?null:+p.vmax;
+  const agora=Date.now(), out=[];
+  let coletadas=0;
+  for(const uf of p.ufs){
+    const c=S.cache[uf]; if(!c) continue;
+    coletadas+=c.rows.length;
+    for(const r of c.rows){
+      if(r.enc && new Date(r.enc).getTime()<agora) continue;
+      if(p.modalidade && r.mod!==p.modalidade) continue;
+      if(p.esfera && r.esf!==p.esfera) continue;
+      if(p.srp && !r.srp) continue;
+      if(mun && !(norm(r.mun+' '+r.org+' '+r.un).includes(mun))) continue;
+      if(vmin!==null && (r.v==null || r.v<vmin)) continue;
+      if(vmax!==null && (r.v==null || r.v>vmax)) continue;
+      const a=avaliar(r,comp);
+      if(a.excl) continue;
+      if(a.nota===0 && !p.semAd) continue;
+      if(a.nota<p.nota) continue;
+      out.push({r,a});
+    }
+  }
+  return {out,coletadas};
+}
+function ordenar(arr){
+  const o=$('ordem').value, t=x=>x?new Date(x).getTime():0;
+  const f={
+    nota:(a,b)=>b.a.nota-a.a.nota||t(a.r.enc)-t(b.r.enc),
+    enc:(a,b)=>(t(a.r.enc)||9e15)-(t(b.r.enc)||9e15),
+    valor:(a,b)=>(b.r.v||0)-(a.r.v||0),
+    pub:(a,b)=>t(b.r.pub)-t(a.r.pub)
+  }[o];
+  return arr.sort(f);
+}
+function prazo(enc){
+  if(!enc) return {txt:'sem prazo',cls:''};
+  const ms=new Date(enc).getTime()-Date.now(), d=Math.ceil(ms/86400000);
+  if(ms<0) return {txt:'encerrada',cls:'urg'};
+  if(d<=1) return {txt:'encerra hoje/amanhã',cls:'urg'};
+  if(d<=3) return {txt:'encerra em '+d+' dias',cls:'urg'};
+  if(d<=7) return {txt:'encerra em '+d+' dias',cls:'atencao'};
+  return {txt:'encerra em '+d+' dias',cls:''};
+}
+function linkPNCP(r){ return 'https://pncp.gov.br/app/editais/'+r.cnpj+'/'+r.ano+'/'+r.seq; }
+
+function render(){
+  const {out,coletadas}=filtrar();
+  const marcas=S.marks;
+  const radar=out.filter(x=>!marcas[x.r.id]);
+  const favs=out.filter(x=>marcas[x.r.id]==='fav');
+  // favoritas e descartadas aparecem mesmo abaixo da nota mínima
+  const todas=[]; for(const uf of perfil().ufs){ const c=S.cache[uf]; if(c) c.rows.forEach(r=>{ if(marcas[r.id]) todas.push(r); }); }
+  const comp=compilar(perfil());
+  const sel = S.view==='radar'?radar : todas.filter(r=>marcas[r.id]===(S.view==='fav'?'fav':'hide')).map(r=>({r,a:avaliar(r,comp)}));
+  $('n-radar').textContent=radar.length; $('n-fav').textContent=todas.filter(r=>marcas[r.id]==='fav').length; $('n-hide').textContent=todas.filter(r=>marcas[r.id]==='hide').length;
+  ordenar(sel); S.lista=sel;
+
+  // resumo
+  const agora=Date.now();
+  const sete=radar.filter(x=>x.r.enc && new Date(x.r.enc)-agora<7*86400000).length;
+  const novas=radar.filter(x=>x.r.pub && agora-new Date(x.r.pub)<86400000).length;
+  const alta=radar.filter(x=>x.a.nota>=70).length;
+  $('resumo').innerHTML=[
+    ['Licitações coletadas',coletadas.toLocaleString('pt-BR')],
+    ['No seu radar',radar.length.toLocaleString('pt-BR')],
+    ['Nota 70 ou mais',alta.toLocaleString('pt-BR')],
+    ['Encerram em 7 dias · novas 24h',sete+' · '+novas]
+  ].map(([k,v])=>'<div class="tile"><small>'+k+'</small><b>'+v+'</b></div>').join('');
+
+  // avisos de coleta parcial
+  const parc=perfil().ufs.filter(u=>S.cache[u]&&!S.cache[u].completo&&S.cache[u].total>S.cache[u].alvo);
+  if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.join(', ')+': baixadas '+parc.map(u=>S.cache[u].alvo*PAGE).join('/')+' de '+parc.map(u=>S.cache[u].total*PAGE).join('/')+' licitações (aproximado). Aumente "Páginas por estado" para ver tudo.');
+  else if(!S.coletando) aviso('');
+
+  // modalidades disponíveis
+  const mods=new Set(); perfil().ufs.forEach(u=>S.cache[u]&&S.cache[u].rows.forEach(r=>mods.add(r.mod)));
+  const ms=$('modalidade'), atual=perfil().modalidade;
+  ms.innerHTML='<option value="">Todas</option>'+[...mods].sort().map(m=>'<option'+(m===atual?' selected':'')+'>'+esc(m)+'</option>').join('');
+
+  $('contagem').textContent=sel.length.toLocaleString('pt-BR')+' licitações';
+  const mostrar=sel.slice(0,S.limite);
+  if(!mostrar.length){
+    const vazio = S.view==='radar'
+      ? (coletadas? '<b>Nada acima da nota mínima</b>Reduza a nota, amplie as palavras ou escolha mais estados.' : '<b>Nenhuma licitação coletada</b>Escolha os estados e clique em Coletar PNCP.')
+      : '<b>Nada aqui ainda</b>Use Favoritar ou Descartar nas licitações do radar.';
+    $('lista').innerHTML='<div class="vazio">'+vazio+'</div>';
+  }else{
+    $('lista').innerHTML=mostrar.map(({r,a})=>{
+      const cls=a.nota>=70?'alta':a.nota>=40?'media':'';
+      const pz=prazo(r.enc), m=marcas[r.id];
+      const aberta=S.abertas.has(r.id);
+      return '<article class="lic'+(aberta?' aberta':'')+'" data-id="'+esc(r.id)+'">'
+        +'<div class="nota '+cls+'" title="'+(a.soInfo?'Palavra só na informação complementar':'Palavras: '+esc(a.hits.map(h=>h.raw).join(', ')))+'"><b>'+a.nota+'</b><span>nota</span></div>'
+        +'<div><h3 class="obj">'+destacar(r,a.hits)+'</h3>'
+        +'<p class="meta"><span><b>'+esc(r.org)+'</b></span><span>'+esc(r.mun)+'/'+esc(r.uf)+'</span><span>'+esc(r.mod)+'</span>'
+        +(r.srp?'<span class="pill">Registro de preços</span>':'')+'<span>'+esc(ESFERA[r.esf]||'')+'</span></p>'
+        +'<div class="acoes">'
+        +'<a class="btn small" href="'+linkPNCP(r)+'" target="_blank" rel="noopener">Abrir no PNCP</a>'
+        +'<button class="btn small" data-a="itens">'+(aberta?'Ocultar itens':'Ver itens')+'</button>'
+        +'<button class="btn small" data-a="fav">'+(m==='fav'?'Remover favorita':'Favoritar')+'</button>'
+        +'<button class="btn small" data-a="hide">'+(m==='hide'?'Restaurar':'Descartar')+'</button>'
+        +'</div><div class="itens" '+(aberta?'':'hidden')+'></div></div>'
+        +'<div class="lado"><div class="valor">'+brl(r.v)+'</div><div class="prazo '+pz.cls+'">'+pz.txt+'</div><small>até '+fmtD(r.enc)+'</small></div>'
+        +'</article>';
+    }).join('');
+    S.abertas.forEach(id=>{ const el=document.querySelector('[data-id="'+CSS.escape(id)+'"]'); if(el) carregarItens(el); });
+  }
+  $('mais').hidden = sel.length<=S.limite;
+}
+
+/* ---------- itens da licitação ---------- */
+async function carregarItens(el){
+  const id=el.dataset.id, r=S.lista.map(x=>x.r).find(x=>x.id===id); if(!r) return;
+  const box=el.querySelector('.itens'); box.hidden=false;
+  if(S.itensCache[id]){ box.innerHTML=S.itensCache[id]; return; }
+  box.textContent='Carregando itens…';
+  try{
+    const j=await getJSON(API_ITENS+'/'+r.cnpj+'/compras/'+r.ano+'/'+r.seq+'/itens?pagina=1&tamanhoPagina=50');
+    const a=Array.isArray(j)?j:(j.data||[]);
+    if(!a.length){ box.textContent='O órgão não publicou itens detalhados.'; return; }
+    box.innerHTML='<table><thead><tr><th>Nº</th><th>Descrição</th><th class="num">Qtd.</th><th class="num">Unitário</th><th class="num">Total</th></tr></thead><tbody>'
+      +a.map(i=>'<tr><td>'+esc(i.numeroItem)+'</td><td>'+esc(i.descricao)+'</td><td class="num">'+esc(i.quantidade)+' '+esc(i.unidadeMedida||'')+'</td><td class="num">'+brl(i.valorUnitarioEstimado)+'</td><td class="num">'+brl(i.valorTotal)+'</td></tr>').join('')
+      +'</tbody></table>'+(a.length>=50?'<p class="status">Mostrando os 50 primeiros itens. Veja o restante no PNCP.</p>':'');
+    S.itensCache[id]=box.innerHTML;
+  }catch(e){ box.textContent='Não foi possível carregar os itens agora.'; }
+}
+
+/* ---------- interface ---------- */
+function montarFiltros(){
+  const p=perfil();
+  $('perfil').innerHTML=S.perfis.map(x=>'<option value="'+x.id+'"'+(x.id===p.id?' selected':'')+'>'+esc(x.nome)+'</option>').join('');
+  $('nomePerfil').value=p.nome; $('termos').value=p.termos; $('excluir').value=p.excluir;
+  $('municipio').value=p.municipio; $('vmin').value=p.vmin; $('vmax').value=p.vmax;
+  $('nota').value=p.nota; $('notaVal').textContent=p.nota; $('srp').checked=p.srp; $('semAd').checked=p.semAd;
+  $('maxPag').value=p.maxPag; $('esfera').value=p.esfera;
+  $('ufs').innerHTML=UFS.map(u=>'<button type="button" class="uf" data-uf="'+u+'" aria-pressed="'+p.ufs.includes(u)+'">'+u+'</button>').join('');
+}
+let t;
+const depois = fn => { clearTimeout(t); t=setTimeout(fn,180); };
+function ligar(id,campo,tipo){
+  $(id).addEventListener(tipo||'input',()=>{
+    const p=perfil(), el=$(id);
+    p[campo]= el.type==='checkbox'?el.checked : el.type==='range'||el.type==='number'&&campo==='maxPag' ? +el.value : el.value;
+    if(id==='nota') $('notaVal').textContent=el.value;
+    salvar();
+    if(id==='nomePerfil') $('perfil').options[$('perfil').selectedIndex].text=el.value||'Sem nome';
+    depois(render);
+  });
+}
+['termos','excluir','municipio','vmin','vmax','nota','maxPag'].forEach(id=>ligar(id,id));
+ligar('nomePerfil','nome'); ligar('srp','srp','change'); ligar('semAd','semAd','change');
+ligar('modalidade','modalidade','change'); ligar('esfera','esfera','change');
+
+$('ufs').addEventListener('click',async e=>{
+  const b=e.target.closest('.uf'); if(!b) return;
+  const p=perfil(), u=b.dataset.uf;
+  p.ufs = p.ufs.includes(u)? p.ufs.filter(x=>x!==u) : [...p.ufs,u];
+  b.setAttribute('aria-pressed',p.ufs.includes(u));
+  salvar(); await carregarCache(); statusTxt(); render();
+});
+$('perfil').addEventListener('change',async()=>{ S.perfilId=$('perfil').value; salvar(); montarFiltros(); await carregarCache(); statusTxt(); render(); });
+$('novoPerfil').addEventListener('click',()=>{ const p=PERFIL_PADRAO(); p.nome='Novo perfil'; p.termos=''; p.excluir=''; S.perfis.push(p); S.perfilId=p.id; salvar(); montarFiltros(); render(); });
+$('delPerfil').addEventListener('click',()=>{
+  if(S.perfis.length<2){ aviso('Mantenha pelo menos um perfil.'); return; }
+  S.perfis=S.perfis.filter(x=>x.id!==S.perfilId); S.perfilId=S.perfis[0].id; salvar(); montarFiltros(); carregarCache().then(()=>{statusTxt();render();});
+});
+$('ordem').addEventListener('change',render);
+$('mais').addEventListener('click',()=>{ S.limite+=100; render(); });
+$('coletar').onclick=coletar;
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
+  S.view=b.dataset.v; S.limite=100;
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',x===b));
+  render();
+}));
+$('toggleFiltros').addEventListener('click',()=>$('filtros').classList.toggle('fechado'));
+if(matchMedia('(max-width:900px)').matches) $('filtros').classList.add('fechado');
+
+$('lista').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-a]'); if(!b) return;
+  const el=b.closest('.lic'), id=el.dataset.id, a=b.dataset.a;
+  if(a==='itens'){
+    if(S.abertas.has(id)) S.abertas.delete(id); else S.abertas.add(id);
+    el.classList.toggle('aberta',S.abertas.has(id));
+    b.textContent=S.abertas.has(id)?'Ocultar itens':'Ver itens';
+    const box=el.querySelector('.itens');
+    if(S.abertas.has(id)) carregarItens(el); else box.hidden=true;
+    return;
+  }
+  const alvo=a==='fav'?'fav':'hide';
+  if(S.marks[id]===alvo) delete S.marks[id]; else S.marks[id]=alvo;
+  ls.set('radar.marks',S.marks); render();
+});
+
+$('csv').addEventListener('click',()=>{
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const cab=['nota','objeto','orgao','municipio','uf','modalidade','registro_de_precos','valor_estimado','encerramento','link_pncp'];
+  const linhas=S.lista.map(({r,a})=>[a.nota,r.o,r.org,r.mun,r.uf,r.mod,r.srp?'sim':'nao',r.v==null?'':r.v,r.enc||'',linkPNCP(r)].map(q).join(';'));
+  const blob=new Blob(['﻿'+cab.join(';')+'\n'+linhas.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='radar-publico.csv'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+});
+
+/* ---------- início ---------- */
+(async function init(){
+  montarFiltros();
+  await carregarCache(); statusTxt(); render();
+  const ts=perfil().ufs.map(u=>S.cache[u]&&S.cache[u].t);
+  const velho = ts.some(x=>!x || Date.now()-x>TTL_AUTO);
+  if(perfil().ufs.length && velho) coletar();
+})();
+
+})();
+</script>
+</body>
+</html>
