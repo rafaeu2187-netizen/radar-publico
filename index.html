@@ -77,6 +77,7 @@ textarea{resize:vertical;min-height:70px;font-size:14px}
 .ufs{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
 .uf{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:4px 0;font:500 12px var(--f-mono);cursor:pointer;color:var(--muted)}
 .uf[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.ufbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink)}
 .perfil{display:flex;gap:6px}
 .perfil select{flex:1}
@@ -176,8 +177,20 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
       <textarea id="excluir" spellcheck="false" style="min-height:52px"></textarea>
     </label>
     <div>
-      <h2 style="margin-bottom:8px">Estados</h2>
+      <div class="ufbar" style="margin-bottom:8px">
+        <h2>Estados</h2><span class="spacer"></span>
+        <button type="button" class="btn small" data-sel="all">Todos</button>
+        <button type="button" class="btn small" data-sel="none">Limpar</button>
+      </div>
+      <div class="ufbar regioes" id="regioes" style="margin-bottom:8px">
+        <button type="button" class="btn small" data-sel="Sul">Sul</button>
+        <button type="button" class="btn small" data-sel="Sudeste">Sudeste</button>
+        <button type="button" class="btn small" data-sel="Centro-Oeste">Centro-Oeste</button>
+        <button type="button" class="btn small" data-sel="Nordeste">Nordeste</button>
+        <button type="button" class="btn small" data-sel="Norte">Norte</button>
+      </div>
       <div class="ufs" id="ufs"></div>
+      <p class="hint" id="ufHint" style="font-size:12px;color:var(--muted);margin:8px 0 0"></p>
     </div>
     <div class="row2">
       <label class="f" for="modalidade">Modalidade
@@ -240,6 +253,10 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
 const API = 'https://pncp.gov.br/api/consulta/v1/contratacoes/proposta';
 const API_ITENS = 'https://pncp.gov.br/api/pncp/v1/orgaos';
 const UFS = 'AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(' ');
+const REGIOES = {
+  'Sul':['PR','SC','RS'], 'Sudeste':['SP','RJ','MG','ES'], 'Centro-Oeste':['DF','GO','MT','MS'],
+  'Nordeste':['AL','BA','CE','MA','PB','PE','PI','RN','SE'], 'Norte':['AC','AP','AM','PA','RO','RR','TO']
+};
 const ESFERA = {F:'Federal',E:'Estadual',M:'Municipal',D:'Distrital'};
 const PAGE = 50, CONC = 2, TTL_AUTO = 12*3600*1000;
 
@@ -360,6 +377,8 @@ async function coletar(){
   try{
     for(const uf of p.ufs){
       if(S.cancelar) break;
+      const ja = S.cache[uf]; // estado coletado por completo há menos de 30 min não precisa repetir
+      if(ja && ja.completo && !ja.interrompida && Date.now()-ja.t<30*60000) continue;
       const r = await coletarUF(uf, Math.max(1,+p.maxPag||60), (f,t,n,rows,total)=>{
         $('status').textContent = uf+': página '+f+' de '+t+' · '+n.toLocaleString('pt-BR')+' licitações';
         $('prog').style.width = Math.round(f/Math.max(t,1)*100)+'%';
@@ -568,6 +587,16 @@ function montarFiltros(){
   $('nota').value=p.nota; $('notaVal').textContent=p.nota; $('srp').checked=p.srp; $('semAd').checked=p.semAd;
   $('maxPag').value=p.maxPag; $('esfera').value=p.esfera;
   $('ufs').innerHTML=UFS.map(u=>'<button type="button" class="uf" data-uf="'+u+'" aria-pressed="'+p.ufs.includes(u)+'">'+u+'</button>').join('');
+  dicaUF();
+}
+function dicaUF(){
+  const n=perfil().ufs.length;
+  $('ufHint').textContent = n>3 ? n+' estados marcados: cada estado grande leva alguns minutos para coletar'+(n>=20?' e todos juntos podem passar de uma hora':'')+'. Os resultados vão aparecendo na lista durante a coleta.' : '';
+}
+async function definirUFs(lista){
+  perfil().ufs=lista; salvar();
+  document.querySelectorAll('#ufs .uf').forEach(b=>b.setAttribute('aria-pressed',lista.includes(b.dataset.uf)));
+  dicaUF(); await carregarCache(); statusTxt(); render();
 }
 let t;
 const depois = fn => { clearTimeout(t); t=setTimeout(fn,180); };
@@ -590,7 +619,17 @@ $('ufs').addEventListener('click',async e=>{
   const p=perfil(), u=b.dataset.uf;
   p.ufs = p.ufs.includes(u)? p.ufs.filter(x=>x!==u) : [...p.ufs,u];
   b.setAttribute('aria-pressed',p.ufs.includes(u));
-  salvar(); await carregarCache(); statusTxt(); render();
+  salvar(); dicaUF(); await carregarCache(); statusTxt(); render();
+});
+document.querySelector('#ufs').parentElement.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-sel]'); if(!b) return;
+  const s=b.dataset.sel, atual=perfil().ufs;
+  if(s==='all') definirUFs([...UFS]);
+  else if(s==='none') definirUFs([]);
+  else { // região: se já está toda marcada, desmarca; senão, soma ao que já estava
+    const r=REGIOES[s], toda=r.every(u=>atual.includes(u));
+    definirUFs(toda ? atual.filter(u=>!r.includes(u)) : [...new Set([...atual,...r])]);
+  }
 });
 $('perfil').addEventListener('change',async()=>{ S.perfilId=$('perfil').value; salvar(); montarFiltros(); await carregarCache(); statusTxt(); render(); });
 $('novoPerfil').addEventListener('click',()=>{ const p=PERFIL_PADRAO(); p.nome='Novo perfil'; p.termos=''; p.excluir=''; S.perfis.push(p); S.perfilId=p.id; salvar(); montarFiltros(); render(); });
