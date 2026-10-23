@@ -366,7 +366,7 @@ async function coletar(){
         // mostra resultados parciais a cada 5 páginas, sem gravar no cache permanente
         if(f===1 || f%5===0){ S.cache[uf]={t:Date.now(), rows:[...rows.values()], total, alvo:t, completo:false}; render(); }
       });
-      const reg = {t:Date.now(), rows:r.rows, total:r.total, alvo:r.alvo, completo:r.completo, falhas:r.falhas};
+      const reg = {t:Date.now(), rows:r.rows, total:r.total, alvo:r.alvo, completo:r.completo, falhas:r.falhas, interrompida:S.cancelar};
       S.cache[uf] = reg; await idbSet(uf,reg);
       render();
     }
@@ -424,7 +424,7 @@ function destacar(r, hits){
   hits.forEach(t=>{ t.re.lastIndex=0; let m; while((m=t.re.exec(n))){ rg.push([m.index,m.index+m[0].length]); if(m[0].length===0) t.re.lastIndex++; } });
   rg.sort((a,b)=>a[0]-b[0]);
   let out='', pos=0;
-  for(const [a,b] of rg){ if(a<pos) continue; out+=esc(o.slice(pos,a))+'<mark>'+esc(o.slice(a,b))+'</mark>'; pos=b; }
+  for(let [a,b] of rg){ if(a<pos) continue; while(b<n.length && /[a-z0-9]/.test(n[b])) b++; out+=esc(o.slice(pos,a))+'<mark>'+esc(o.slice(a,b))+'</mark>'; pos=b; }
   return out+esc(o.slice(pos));
 }
 
@@ -500,10 +500,10 @@ function render(){
   ].map(([k,v])=>'<div class="tile"><small>'+k+'</small><b>'+v+'</b></div>').join('');
 
   // avisos de coleta parcial
-  const parc=perfil().ufs.filter(u=>S.cache[u]&&!S.cache[u].completo&&S.cache[u].total>S.cache[u].alvo);
+  const parc=perfil().ufs.filter(u=>S.cache[u]&&!S.cache[u].completo&&(S.cache[u].total>S.cache[u].alvo||S.cache[u].interrompida));
   const fal=perfil().ufs.filter(u=>S.cache[u]&&S.cache[u].falhas>0);
   if(fal.length && !S.coletando) aviso('Algumas páginas do PNCP não carregaram em '+fal.join(', ')+' (o PNCP limita o ritmo das consultas). Clique em Coletar PNCP para completar.');
-  else if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.join(', ')+': baixadas '+parc.map(u=>S.cache[u].alvo*PAGE).join('/')+' de '+parc.map(u=>S.cache[u].total*PAGE).join('/')+' licitações (aproximado). Aumente "Páginas por estado" para ver tudo.');
+  else if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.map(u=>u+': '+S.cache[u].rows.length.toLocaleString('pt-BR')+' de cerca de '+(S.cache[u].total*PAGE).toLocaleString('pt-BR')).join(' · ')+' licitações. '+(parc.some(u=>S.cache[u].interrompida)?'A coleta foi interrompida; clique em Coletar PNCP para refazer.':'Aumente "Páginas por estado" para ver tudo.'));
   else if(!S.coletando) aviso('');
 
   // modalidades disponíveis
@@ -638,8 +638,7 @@ $('csv').addEventListener('click',()=>{
 (async function init(){
   montarFiltros();
   await carregarCache(); statusTxt(); render();
-  const ts=perfil().ufs.map(u=>S.cache[u]&&S.cache[u].t);
-  const velho = ts.some(x=>!x || Date.now()-x>TTL_AUTO);
+  const velho = perfil().ufs.some(u=>{ const c=S.cache[u]; return !c || Date.now()-c.t>TTL_AUTO || c.interrompida; });
   if(perfil().ufs.length && velho) coletar();
 })();
 
