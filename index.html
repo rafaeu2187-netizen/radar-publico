@@ -241,7 +241,7 @@ const API = 'https://pncp.gov.br/api/consulta/v1/contratacoes/proposta';
 const API_ITENS = 'https://pncp.gov.br/api/pncp/v1/orgaos';
 const UFS = 'AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO'.split(' ');
 const ESFERA = {F:'Federal',E:'Estadual',M:'Municipal',D:'Distrital'};
-const PAGE = 50, CONC = 4, TTL_AUTO = 12*3600*1000;
+const PAGE = 50, CONC = 2, TTL_AUTO = 12*3600*1000;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -295,13 +295,14 @@ const perfil = () => S.perfis.find(p=>p.id===S.perfilId);
 const salvar = () => { ls.set('radar.perfis',S.perfis); ls.set('radar.perfilId',S.perfilId); };
 
 /* ---------- coleta no PNCP ---------- */
-async function getJSON(url){
-  for(let i=0;i<5;i++){
+async function getJSON(url,tries=6){
+  for(let i=0;i<tries;i++){
     let r;
-    try{ r = await fetch(url); }catch(e){ await sleep(700*2**i); continue; }
+    // o PNCP limita o ritmo e a resposta de bloqueio chega sem CORS: o navegador a mostra como falha de rede
+    try{ r = await fetch(url); }catch(e){ await sleep(Math.min(20000,1500*2**i)); continue; }
     if(r.status===204) return {data:[],totalPaginas:0,totalRegistros:0};
     if(r.ok) return r.json();
-    if([429,500,502,503,504].includes(r.status)){ await sleep(900*2**i); continue; }
+    if([429,500,502,503,504].includes(r.status)){ await sleep(Math.min(20000,1500*2**i)); continue; }
     throw new Error('PNCP respondeu '+r.status);
   }
   throw new Error('PNCP não respondeu. Tente de novo em alguns minutos.');
@@ -328,18 +329,26 @@ async function coletarUF(uf, maxPag, onProgress){
   const alvo = Math.min(total, maxPag);
   const rows = new Map();
   (p1.data||[]).forEach(c=>rows.set(c.numeroControlePNCP,compacta(c)));
-  let feitas = 1; onProgress(feitas,alvo,rows.size);
-  let prox = 2;
+  let feitas = 1; onProgress(feitas,alvo,rows.size,rows,total);
+  let prox = 2; const falhas = [];
   async function worker(){
     while(!S.cancelar){
       const n = prox++; if(n>alvo) return;
       try{ const j = await getJSON(base+n); (j.data||[]).forEach(c=>rows.set(c.numeroControlePNCP,compacta(c))); }
-      catch(e){ /* pula a página que falhou */ }
-      feitas++; onProgress(feitas,alvo,rows.size);
+      catch(e){ falhas.push(n); }
+      feitas++; onProgress(feitas,alvo,rows.size,rows,total);
+      await sleep(250);
     }
   }
   await Promise.all(Array.from({length:CONC},worker));
-  return {rows:[...rows.values()], total, alvo, completo: !S.cancelar && alvo>=total};
+  // segunda passada, devagar, nas páginas que falharam
+  for(const n of [...falhas]){
+    if(S.cancelar) break;
+    await sleep(3000);
+    try{ const j = await getJSON(base+n,3); (j.data||[]).forEach(c=>rows.set(c.numeroControlePNCP,compacta(c))); falhas.splice(falhas.indexOf(n),1); }
+    catch(e){ /* continua na lista de falhas */ }
+  }
+  return {rows:[...rows.values()], total, alvo, falhas:falhas.length, completo: !S.cancelar && alvo>=total && falhas.length===0};
 }
 async function coletar(){
   if(S.coletando) return;
@@ -351,11 +360,13 @@ async function coletar(){
   try{
     for(const uf of p.ufs){
       if(S.cancelar) break;
-      const r = await coletarUF(uf, Math.max(1,+p.maxPag||60), (f,t,n)=>{
+      const r = await coletarUF(uf, Math.max(1,+p.maxPag||60), (f,t,n,rows,total)=>{
         $('status').textContent = uf+': página '+f+' de '+t+' · '+n.toLocaleString('pt-BR')+' licitações';
         $('prog').style.width = Math.round(f/Math.max(t,1)*100)+'%';
+        // mostra resultados parciais a cada 5 páginas, sem gravar no cache permanente
+        if(f===1 || f%5===0){ S.cache[uf]={t:Date.now(), rows:[...rows.values()], total, alvo:t, completo:false}; render(); }
       });
-      const reg = {t:Date.now(), rows:r.rows, total:r.total, alvo:r.alvo, completo:r.completo};
+      const reg = {t:Date.now(), rows:r.rows, total:r.total, alvo:r.alvo, completo:r.completo, falhas:r.falhas};
       S.cache[uf] = reg; await idbSet(uf,reg);
       render();
     }
@@ -490,7 +501,9 @@ function render(){
 
   // avisos de coleta parcial
   const parc=perfil().ufs.filter(u=>S.cache[u]&&!S.cache[u].completo&&S.cache[u].total>S.cache[u].alvo);
-  if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.join(', ')+': baixadas '+parc.map(u=>S.cache[u].alvo*PAGE).join('/')+' de '+parc.map(u=>S.cache[u].total*PAGE).join('/')+' licitações (aproximado). Aumente "Páginas por estado" para ver tudo.');
+  const fal=perfil().ufs.filter(u=>S.cache[u]&&S.cache[u].falhas>0);
+  if(fal.length && !S.coletando) aviso('Algumas páginas do PNCP não carregaram em '+fal.join(', ')+' (o PNCP limita o ritmo das consultas). Clique em Coletar PNCP para completar.');
+  else if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.join(', ')+': baixadas '+parc.map(u=>S.cache[u].alvo*PAGE).join('/')+' de '+parc.map(u=>S.cache[u].total*PAGE).join('/')+' licitações (aproximado). Aumente "Páginas por estado" para ver tudo.');
   else if(!S.coletando) aviso('');
 
   // modalidades disponíveis
@@ -536,7 +549,7 @@ async function carregarItens(el){
   if(S.itensCache[id]){ box.innerHTML=S.itensCache[id]; return; }
   box.textContent='Carregando itens…';
   try{
-    const j=await getJSON(API_ITENS+'/'+r.cnpj+'/compras/'+r.ano+'/'+r.seq+'/itens?pagina=1&tamanhoPagina=50');
+    const j=await getJSON(API_ITENS+'/'+r.cnpj+'/compras/'+r.ano+'/'+r.seq+'/itens?pagina=1&tamanhoPagina=50',3);
     const a=Array.isArray(j)?j:(j.data||[]);
     if(!a.length){ box.textContent='O órgão não publicou itens detalhados.'; return; }
     box.innerHTML='<table><thead><tr><th>Nº</th><th>Descrição</th><th class="num">Qtd.</th><th class="num">Unitário</th><th class="num">Total</th></tr></thead><tbody>'
