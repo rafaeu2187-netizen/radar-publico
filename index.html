@@ -146,8 +146,8 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
       <button class="tab" role="tab" data-v="hide" aria-selected="false">Descartadas <span class="n" id="n-hide">0</span></button>
     </nav>
     <div class="spacer"></div>
-    <span class="status" id="status">Aguardando coleta</span>
-    <button class="btn primary" id="coletar">Coletar PNCP</button>
+    <span class="status" id="status">Nenhuma pesquisa feita ainda</span>
+    <button class="btn primary" id="coletar">Pesquisar</button>
   </div>
   <div class="bar"><i id="prog"></i></div>
 </header>
@@ -372,7 +372,7 @@ async function coletar(){
   const p = perfil();
   if(!p.ufs.length){ aviso('Escolha pelo menos um estado.'); return; }
   S.coletando = true; S.cancelar = false;
-  $('coletar').textContent = 'Parar coleta';
+  $('coletar').textContent = 'Parar pesquisa';
   $('coletar').onclick = ()=>{ S.cancelar = true; };
   try{
     for(const uf of p.ufs){
@@ -394,7 +394,7 @@ async function coletar(){
   }finally{
     S.coletando=false; S.cancelar=false;
     $('prog').style.width='0';
-    $('coletar').textContent='Coletar PNCP';
+    atualizaBotao();
     $('coletar').onclick = coletar;
     statusTxt(); render();
   }
@@ -402,11 +402,18 @@ async function coletar(){
 async function carregarCache(){
   for(const uf of perfil().ufs){ if(!S.cache[uf]){ const r = await idbGet(uf); if(r) S.cache[uf]=r; } }
 }
+// "Pesquisar" quando falta dado de algum estado marcado; "Atualizar pesquisa" quando já há dados de todos
+function atualizaBotao(){
+  const p=perfil();
+  const tem = p.ufs.length>0 && p.ufs.every(u=>S.cache[u] && !S.cache[u].interrompida);
+  $('coletar').textContent = S.coletando ? 'Parar pesquisa' : (tem ? 'Atualizar pesquisa' : 'Pesquisar');
+}
 function statusTxt(){
   const ts = perfil().ufs.map(u=>S.cache[u]&&S.cache[u].t).filter(Boolean);
-  if(!ts.length){ $('status').textContent='Nenhuma coleta feita ainda'; return; }
+  atualizaBotao();
+  if(!ts.length){ $('status').textContent='Nenhuma pesquisa feita ainda'; return; }
   const min = Math.min(...ts), m = Math.round((Date.now()-min)/60000);
-  $('status').textContent = 'Coletado há '+(m<1?'instantes':m<60?m+' min':Math.round(m/60)+' h');
+  $('status').textContent = 'Pesquisa feita há '+(m<1?'instantes':m<60?m+' min':Math.round(m/60)+' h');
 }
 function aviso(t){ $('avisos').innerHTML = t?'<div class="msg">'+esc(t)+'</div>':''; }
 
@@ -521,8 +528,8 @@ function render(){
   // avisos de coleta parcial
   const parc=perfil().ufs.filter(u=>S.cache[u]&&!S.cache[u].completo&&(S.cache[u].total>S.cache[u].alvo||S.cache[u].interrompida));
   const fal=perfil().ufs.filter(u=>S.cache[u]&&S.cache[u].falhas>0);
-  if(fal.length && !S.coletando) aviso('Algumas páginas do PNCP não carregaram em '+fal.join(', ')+' (o PNCP limita o ritmo das consultas). Clique em Coletar PNCP para completar.');
-  else if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.map(u=>u+': '+S.cache[u].rows.length.toLocaleString('pt-BR')+' de cerca de '+(S.cache[u].total*PAGE).toLocaleString('pt-BR')).join(' · ')+' licitações. '+(parc.some(u=>S.cache[u].interrompida)?'A coleta foi interrompida; clique em Coletar PNCP para refazer.':'Aumente "Páginas por estado" para ver tudo.'));
+  if(fal.length && !S.coletando) aviso('Algumas páginas do PNCP não carregaram em '+fal.join(', ')+' (o PNCP limita o ritmo das consultas). Clique em Atualizar pesquisa para completar.');
+  else if(parc.length && !S.coletando) aviso('Coleta parcial em '+parc.map(u=>u+': '+S.cache[u].rows.length.toLocaleString('pt-BR')+' de cerca de '+(S.cache[u].total*PAGE).toLocaleString('pt-BR')).join(' · ')+' licitações. '+(parc.some(u=>S.cache[u].interrompida)?'A pesquisa foi interrompida; clique em Pesquisar para refazer.':'Aumente "Páginas por estado" para ver tudo.'));
   else if(!S.coletando) aviso('');
 
   // modalidades disponíveis
@@ -534,7 +541,7 @@ function render(){
   const mostrar=sel.slice(0,S.limite);
   if(!mostrar.length){
     const vazio = S.view==='radar'
-      ? (coletadas? '<b>Nada acima da nota mínima</b>Reduza a nota, amplie as palavras ou escolha mais estados.' : '<b>Nenhuma licitação coletada</b>Escolha os estados e clique em Coletar PNCP.')
+      ? (coletadas? '<b>Nada acima da nota mínima</b>Reduza a nota, amplie as palavras ou escolha mais estados.' : '<b>Nenhuma pesquisa feita ainda</b>Escolha os estados, ajuste as palavras e clique em Pesquisar.')
       : '<b>Nada aqui ainda</b>Use Favoritar ou Descartar nas licitações do radar.';
     $('lista').innerHTML='<div class="vazio">'+vazio+'</div>';
   }else{
@@ -677,8 +684,7 @@ $('csv').addEventListener('click',()=>{
 (async function init(){
   montarFiltros();
   await carregarCache(); statusTxt(); render();
-  const velho = perfil().ufs.some(u=>{ const c=S.cache[u]; return !c || Date.now()-c.t>TTL_AUTO || c.interrompida; });
-  if(perfil().ufs.length && velho) coletar();
+  // a pesquisa só começa quando você clica no botão; nada roda sozinho ao abrir a página
 })();
 
 })();
