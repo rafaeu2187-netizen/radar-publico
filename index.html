@@ -93,6 +93,10 @@ details.como p{margin:8px 0 0}
 
 /* Cartões de resumo */
 [hidden]{display:none!important}
+/* no computador o botão fica na coluna de filtros; no celular os filtros ficam recolhidos, então o do cabeçalho continua */
+.btn-topo{display:none}
+@media (max-width:900px){.btn-topo{display:inline-block}}
+.ordem .status:not(:empty)::before{content:"·";margin-right:10px}
 .resumo{display:flex;flex-wrap:wrap;gap:4px 20px;margin-bottom:12px;font-size:14px;color:var(--muted)}
 .resumo span b{color:var(--ink);font:600 15px var(--f-mono);font-variant-numeric:tabular-nums;margin-right:5px}
 .linha-nota{display:flex;justify-content:space-between}
@@ -154,8 +158,7 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
       <button class="tab" role="tab" data-v="hide" aria-selected="false">Descartadas <span class="n" id="n-hide">0</span></button>
     </nav>
     <div class="spacer"></div>
-    <span class="status" id="status">Nenhuma pesquisa feita ainda</span>
-    <button class="btn primary js-pesquisar" type="button">Pesquisar</button>
+    <button class="btn primary js-pesquisar btn-topo" type="button">Pesquisar</button>
   </div>
   <div class="bar"><i id="prog"></i></div>
 </header>
@@ -258,6 +261,7 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
       <option value="pub">Publicadas recentemente</option>
     </select>
     <span class="count" id="contagem"></span>
+    <span class="status" id="status">Nenhuma pesquisa feita ainda</span>
     <span class="spacer"></span>
     <button class="btn small" id="csv" type="button">Exportar CSV</button>
   </div>
