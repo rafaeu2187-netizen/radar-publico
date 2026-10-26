@@ -104,6 +104,12 @@ details.como p{margin:8px 0 0}
 details.mais{border-top:1px solid var(--line);padding-top:10px}
 details.mais>summary{cursor:pointer;font-size:14px;font-weight:500;color:var(--ink)}
 .mais-corpo{display:grid;gap:12px;margin-top:12px}
+.proj{display:grid;gap:8px;margin-top:8px}
+.proj-i{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);display:grid;gap:6px}
+.proj-i.ativo{border-color:var(--accent);background:var(--accent-soft)}
+.proj-i b{font-size:14px;overflow-wrap:anywhere}
+.proj-i small{color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+.proj-i .btn{justify-self:start}
 .pe{position:sticky;bottom:0;margin:0 -16px -16px;padding:12px 16px 16px;background:var(--panel);border-top:1px solid var(--line);border-radius:0 0 12px 12px}
 .pe .btn{width:100%;padding:11px 14px}
 .modo{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--bg);gap:3px}
@@ -169,6 +175,11 @@ mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 2px}
 <aside class="filtros" id="filtros">
   <button class="btn filtros-toggle" id="toggleFiltros" type="button">Filtros do radar</button>
   <div class="corpo-filtros" style="display:grid;gap:14px">
+    <div id="projBox" hidden>
+      <h2>Seus projetos</h2>
+      <p class="hint" style="font-size:12px;color:var(--muted);margin:6px 0 0">Vindos do Busca Pública. Cada um já traz uma busca sugerida; você ajusta as palavras depois.</p>
+      <div class="proj" id="projLista"></div>
+    </div>
     <div>
       <div class="modo" role="group" aria-label="Tipo de pesquisa">
         <button type="button" class="seg" data-modo="rapida" aria-pressed="true">Busca rápida</button>
@@ -763,7 +774,7 @@ document.querySelector('#ufs').parentElement.addEventListener('click',e=>{
     definirUFs(toda ? atual.filter(u=>!r.includes(u)) : [...new Set([...atual,...r])]);
   }
 });
-$('perfil').addEventListener('change',async()=>{ S.perfilId=$('perfil').value; salvar(); montarFiltros(); await carregarCache(); statusTxt(); render(); });
+$('perfil').addEventListener('change',async()=>{ S.perfilId=$('perfil').value; salvar(); montarFiltros(); pintarProjetos(); await carregarCache(); statusTxt(); render(); });
 $('novoPerfil').addEventListener('click',()=>{ const p=PERFIL_PADRAO(); p.nome='Novo perfil'; p.termos=''; p.excluir=''; S.perfis.push(p); S.perfilId=p.id; salvar(); montarFiltros(); render(); });
 $('delPerfil').addEventListener('click',()=>{
   if(S.perfis.length<2){ aviso('Mantenha pelo menos um perfil.'); return; }
@@ -813,8 +824,77 @@ $('csv').addEventListener('click',()=>{
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 });
 
+/* ---------- projetos do Busca Pública: sugestões de busca ---------- */
+// O Busca Pública abre o radar com os projetos na parte # do endereço (não vai para o servidor).
+const PARADAS = new Set(('a o as os um uma uns umas de da do das dos em na no nas nos para por com sem sob sobre ao aos e ou que se '+
+  'ano anos inicial iniciais final finais fundamental medio infantil ensino educacao educacional escolar escolares escola escolas '+
+  'projeto projetos programa programas solucao proposta rede redes municipal municipais publico publica aluno alunos professor professores '+
+  'formacao complementar apoio desenvolvimento ampliacao melhoria').split(' '));
+const SINONIMOS = [ // palavra do projeto -> termos que os órgãos costumam usar no edital
+  [/^leitur|^leitor|^literari|^literatur/, ['livros','literatura']],
+  [/^acervo/, ['acervo bibliográfico','biblioteca']]
+];
+function sugerir(pj){
+  const lim = (s,n) => String(s||'').slice(0,n);
+  const campos = [lim(pj.s,120), lim(pj.t,120), lim(pj.u,120)];
+  const termos = [];
+  const add = t => { t=t.trim(); if(t && !termos.some(x=>norm(x)===norm(t))) termos.push(t); };
+  // frases curtas (2 a 5 palavras) do tipo de solução e do tema: mais precisas
+  [campos[0],campos[1]].forEach(f=>{ const n=f.trim().split(/\s+/).filter(Boolean).length; if(n>=2 && n<=5) add(f.toLowerCase()); });
+  // palavras soltas que não são genéricas
+  campos.forEach(f=>{
+    norm(f).split(/[^a-z0-9]+/).filter(w=>w.length>=4 && !PARADAS.has(w)).forEach(w=>{
+      const orig = f.toLowerCase().split(/\s+/).find(x=>norm(x).replace(/[^a-z0-9]/g,'')===w) || w;
+      add(orig.replace(/[^\p{L}\p{N}-]/gu,''));
+    });
+  });
+  const base = termos.slice();
+  base.forEach(t=>SINONIMOS.forEach(([re,adds])=>{ if(re.test(norm(t))) adds.forEach(add); }));
+  const final = termos.slice(0,9);
+  const excluir = final.some(t=>/^livro/.test(norm(t))) ? 'livro ata, livro caixa, livro de ponto, livro de registro' : '';
+  return {termos:final, excluir};
+}
+function lerProjetosDaURL(){
+  const m = /[#&]projetos=([^&]+)/.exec(location.hash||''); if(!m) return;
+  try{
+    const b = decodeURIComponent(m[1]).replace(/-/g,'+').replace(/_/g,'/');
+    const arr = JSON.parse(decodeURIComponent(escape(atob(b))));
+    if(Array.isArray(arr)){
+      const limpo = arr.slice(0,30).map(x=>({id:String(x.id||'').slice(0,64), n:String(x.n||'').slice(0,120), s:String(x.s||'').slice(0,120), t:String(x.t||'').slice(0,120), u:String(x.u||'').slice(0,120)}))
+        .filter(x=>x.id && (x.s||x.t||x.u));
+      ls.set('radar.projetos', limpo);
+    }
+  }catch(e){}
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+}
+function pintarProjetos(){
+  const lista = ls.get('radar.projetos',[]);
+  $('projBox').hidden = !lista.length;
+  $('projLista').innerHTML = lista.map(pj=>{
+    const sg = sugerir(pj), ex = S.perfis.find(p=>p.projId===pj.id);
+    return '<div class="proj-i'+(ex&&ex.id===S.perfilId?' ativo':'')+'"><b>'+esc(pj.n||'Projeto sem nome')+'</b>'
+      +'<small>'+(sg.termos.length?esc(sg.termos.join(', ')):'Preencha solução e tema no projeto para gerar sugestões.')+'</small>'
+      +(sg.termos.length?'<button type="button" class="btn small" data-proj="'+esc(pj.id)+'">'+(ex?(ex.id===S.perfilId?'Busca em uso':'Abrir minha busca'):'Criar busca deste projeto')+'</button>':'')+'</div>';
+  }).join('');
+}
+async function usarProjeto(id){
+  const pj = ls.get('radar.projetos',[]).find(x=>x.id===id); if(!pj || S.coletando) return;
+  let p = S.perfis.find(x=>x.projId===id);
+  if(!p){
+    const sg = sugerir(pj), atual = perfil();
+    p = PERFIL_PADRAO(); p.id += Math.random().toString(36).slice(2,5);
+    p.projId = id; p.nome = pj.n || 'Projeto'; p.termos = sg.termos.join(', '); p.excluir = sg.excluir;
+    p.ufs = atual.ufs.slice(); p.modo = 'rapida';
+    S.perfis.push(p);
+  }
+  S.perfilId = p.id; salvar(); montarFiltros(); pintarProjetos();
+  await carregarCache(); statusTxt(); render();
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-proj]'); if(b) usarProjeto(b.dataset.proj); });
+
 /* ---------- início ---------- */
 (async function init(){
+  lerProjetosDaURL(); pintarProjetos();
   montarFiltros();
   await carregarCache(); statusTxt(); render();
   // a pesquisa só começa quando você clica no botão; nada roda sozinho ao abrir a página
