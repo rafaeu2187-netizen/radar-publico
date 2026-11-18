@@ -304,7 +304,7 @@ const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 const norm = s => String(s||'').normalize('NFC').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-const brl = v => v==null?'Sigiloso':'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:v>=1000?0:2});
+const brl = v => v==null?'Sigiloso':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD = iso => { if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
 
 /* ---------- armazenamento ---------- */
@@ -444,8 +444,8 @@ function doBusca(i){
   const desc=i.description||'';
   return {id:i.numero_controle_pncp||(m[1]+'-'+m[2]+'-'+m[3]), cnpj:m[1], ano:+m[2], seq:+m[3], o:desc, i:'',
     org:i.orgao_nome||'', un:i.unidade_nome||'', uf:i.uf||'', mun:i.municipio_nome||'', mod:i.modalidade_licitacao_nome||'',
-    esf:i.esfera_id||'', srp:/registro de pre[cç]os?/i.test(desc), v:null,
-    ab:i.data_inicio_vigencia, enc:i.data_fim_vigencia, pub:i.data_publicacao_pncp, modo:'', orig:'', via:1};
+    esf:i.esfera_id||'', srp:i.srp===true || /registro de pre[cç]os?/i.test(desc), v:i.valor_total_estimado==null?null:i.valor_total_estimado, vh:i.valor_total_homologado==null?null:i.valor_total_homologado, sig:!!i.indicador_orcamento_sigiloso, vs:1,
+    ab:i.data_inicio_vigencia, enc:i.data_fim_vigencia, pub:i.data_publicacao_pncp, modo:i.modo_disputa_nome||'', orig:i.link_sistema_origem||'', via:1};
 }
 async function buscaRapida(){
   if(S.coletando) return;
@@ -586,7 +586,7 @@ function filtrar(){
       if(p.esfera && r.esf!==p.esfera) continue;
       if(p.srp && !r.srp) continue;
       if(mun && !(norm(r.mun+' '+r.org+' '+r.un).includes(mun))) continue;
-      // a busca rápida não traz o valor estimado; nesse caso o filtro de valor não exclui a licitação
+      // sem valor informado (sigiloso ou resultado antigo sem valor), o filtro de valor não exclui a licitação
       if(vmin!==null && (r.v==null ? !r.via : r.v<vmin)) continue;
       if(vmax!==null && (r.v==null ? !r.via : r.v>vmax)) continue;
       const a=notaDe(r,comp);
@@ -616,6 +616,15 @@ function prazo(enc){
   if(d<=3) return {txt:'encerra em '+d+' dias',cls:'urg'};
   if(d<=7) return {txt:'encerra em '+d+' dias',cls:'atencao'};
   return {txt:'encerra em '+d+' dias',cls:''};
+}
+// valor total estimado como consta no PNCP; sem estimado, mostra o homologado; orçamento sigiloso é avisado
+function valorTxt(r){
+  const peq = t=>'<span style="font-size:12px;font-weight:400;font-family:var(--f-body);color:var(--muted)">'+t+'</span>';
+  if(r.v!=null) return brl(r.v)+'<br>'+peq('valor total estimado');
+  if(r.vh!=null) return brl(r.vh)+'<br>'+peq('valor homologado');
+  if(r.sig) return peq('orçamento sigiloso');
+  if(r.via && !r.vs) return peq('clique em Atualizar pesquisa para ver o valor');
+  return peq('valor não informado');
 }
 function linkPNCP(r){ return 'https://pncp.gov.br/app/editais/'+r.cnpj+'/'+r.ano+'/'+r.seq; }
 
@@ -681,7 +690,7 @@ function render(){
         +'<button class="btn small" data-a="fav">'+(m==='fav'?'Remover favorita':'Favoritar')+'</button>'
         +'<button class="btn small" data-a="hide">'+(m==='hide'?'Restaurar':'Descartar')+'</button>'
         +'</div><div class="itens" '+(aberta?'':'hidden')+'></div></div>'
-        +'<div class="lado"><div class="valor">'+(r.v==null&&r.via?'<span style="font-size:13px;font-weight:400;font-family:var(--f-body);color:var(--muted)">valor no PNCP</span>':brl(r.v))+'</div><div class="prazo '+pz.cls+'">'+pz.txt+'</div><small>até '+fmtD(r.enc)+'</small></div>'
+        +'<div class="lado"><div class="valor">'+valorTxt(r)+'</div><div class="prazo '+pz.cls+'">'+pz.txt+'</div><small>até '+fmtD(r.enc)+'</small></div>'
         +'</article>';
     }).join('');
     S.abertas.forEach(id=>{ const el=document.querySelector('[data-id="'+CSS.escape(id)+'"]'); if(el) carregarItens(el); });
