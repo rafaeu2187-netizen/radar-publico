@@ -620,8 +620,8 @@ function prazo(enc){
 // valor total estimado como consta no PNCP; sem estimado, mostra o homologado; orçamento sigiloso é avisado
 function valorTxt(r){
   const peq = t=>'<span style="font-size:12px;font-weight:400;font-family:var(--f-body);color:var(--muted)">'+t+'</span>';
-  if(r.v!=null) return brl(r.v)+'<br>'+peq('valor total estimado');
-  if(r.vh!=null) return brl(r.vh)+'<br>'+peq('valor homologado');
+  if(r.v>0) return brl(r.v)+'<br>'+peq('valor total estimado');
+  if(r.vh>0) return brl(r.vh)+'<br>'+peq('valor homologado');
   if(r.sig) return peq('orçamento sigiloso');
   if(r.via && !r.vs) return peq('clique em Atualizar pesquisa para ver o valor');
   return peq('valor não informado');
